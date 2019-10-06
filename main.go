@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"math/rand"
 	"os"
 	"os/exec"
@@ -54,7 +55,7 @@ var checked = [][]bool{
 }
 
 
-func checkedReset(){
+func ResetChecked(){
 	checked = [][]bool{
 		{false, false, false, false, false, false, false, false, false},
 		{false, false, false, false, false, false, false, false, false},
@@ -95,112 +96,162 @@ func eraseConnectedBlock(x int, y int, cellType string){
 	eraseConnectedBlock(x, y-1, cellType)
 	eraseConnectedBlock(x+1, y, cellType)
 	eraseConnectedBlock(x, y+1, cellType)
+}
 
+func eraseConnectedBlockAll(player *Player){
+	ResetChecked()
+	for y := 0; y < HEIGHT; y++ {
+		for x := 0; x < WIDTH; x++{
+			n := getConnectedBlockCount(x, y, cell[y][x], 0)
+			if n >= 3{
+				eraseConnectedBlock(x, y, cell[y][x])
+				player.locked = true
+			}
+		}
+	}
+}
+
+func NewPlay() *Player{
+	return &Player{
+		error: "",
+		locked: false,
+		cursorX: 0,
+		cursorY: 0,
+		selectedX: -1,
+		selectedY: -1,
+	}
+}
+
+type Player struct {
+	error string
+	locked bool
+	cursorX int
+	cursorY int
+	selectedX int
+	selectedY int
+}
+
+func (p *Player) display(){
+	c := exec.Command("clear")
+	c.Stdout = os.Stdout
+	c.Run()
+	if p.error != ""{
+		fmt.Println(p.error)
+	}
+
+
+	p.locked = false
+
+	// 落下処理
+	for y := HEIGHT-2; y >= 0; y-- {
+		for x := 0; x < WIDTH; x++ {
+			if cell[y][x] != "-" && cell[y+1][x] == "-"{
+				cell[y+1][x] = cell[y][x]
+				cell[y][x] = "-"
+				p.locked = true
+			}
+		}
+	}
+
+	// 補充処理
+	for x := 0; x < WIDTH; x++{
+		if cell[0][x] == "-"{
+			cell[0][x] = block[rand.Intn(7)]
+			p.locked = true
+		}
+	}
+
+	// 画面描画処理
+	for y := 0; y < HEIGHT; y++ {
+		for x := 0; x < WIDTH; x++{
+			if p.cursorX == x && p.cursorY == y{
+				fmt.Print("[" +cell[y][x]+"]")
+			} else{
+				fmt.Print(" " + cell[y][x]+" ")
+			}
+		}
+		if p.selectedY == y {
+			fmt.Print("←")
+		}
+		fmt.Println()
+	}
+
+	for x := 0; x < WIDTH; x++{
+		if p.selectedX == x{
+			fmt.Print(" ↑ ")
+		}else {
+			fmt.Print("  ")
+		}
+	}
+	fmt.Println()
+
+	if !p.locked{
+		eraseConnectedBlockAll(p)
+	}
 }
 
 
 func main() {
-	var cursorX = 0
-	var cursorY = 0
 	for y := 0; y < HEIGHT; y++ {
 		for x := 0; x < WIDTH; x++{
-			num := rand.Intn(7)
-			cell[x][y] = block[num]
+			cell[x][y] = block[rand.Intn(7)]
 		}
 	}
 
-	var selectedX = -1
-	var selectedY = -1
-	locked := false
-
+	play := NewPlay()
 
 
 	for{
-		c := exec.Command("clear")
-		c.Stdout = os.Stdout
-		c.Run()
+		play.display()
 
+		if !play.locked {
+			var word string
+			fmt.Scan(&word)
+			play.error = ""
 
-		// 落下処理
-		for y := HEIGHT-2; y >= 0; y-- {
-			for x := 0; x < WIDTH; x++ {
-		    	if cell[y][x] != "-" && cell[y+1][x] == "-"{
-					 cell[y+1][x] = cell[y][x]
-					 cell[y][x] = "-"
-				}
-			}
-		}
-
-		// 画面描画処理
-		for y := 0; y < HEIGHT; y++ {
-			for x := 0; x < WIDTH; x++{
-				if cursorX == x && cursorY == y{
-					fmt.Print("[" +cell[y][x]+"]")
-				} else{
-					fmt.Print(" " + cell[y][x]+" ")
-				}
-			}
-			if selectedY == y {
-				fmt.Print("←")
-			}
-			fmt.Println()
-		}
-
-		for x := 0; x < WIDTH; x++{
-			if selectedX == x{
-				fmt.Print("↑ ")
-			}else {
-				fmt.Print("  ")
-			}
-		}
-		fmt.Println()
-
-
-		var word string
-		fmt.Scan(&word)
-
-		if !locked {
 			// キーボード入力処理
 			switch word {
 			case "s":
-				cursorY += 1
-				if cursorY > 7{
-					cursorY = 7
+				play.cursorY += 1
+				if play.cursorY > 7{
+					play.cursorY = 7
 				}
 			case "w":
-				cursorY -= 1
-				if cursorY < 0{
-					cursorY = 0
+				play.cursorY -= 1
+				if play.cursorY < 0{
+					play.cursorY = 0
 				}
 			case "a":
-				cursorX -= 1
-				if cursorX < 0{
-					cursorX = 0
+				play.cursorX -= 1
+				if play.cursorX < 0{
+					play.cursorX = 0
 				}
 			case "d":
-				cursorX += 1
-				if cursorX > 7{
-					cursorX = 7
+				play.cursorX += 1
+				if play.cursorX > 7{
+					play.cursorX = 7
 				}
 			case "z":
-				if selectedX < 0{
-					selectedX = cursorX
-					selectedY = cursorY
+				if play.selectedX < 0 {
+					play.selectedX = play.cursorX
+					play.selectedY = play.cursorY
 				}else{
-					cell[selectedY][selectedX], cell[cursorY][cursorX] = cell[cursorY][cursorX], cell[selectedY][selectedX]
 
-					// 連結確認処理
-					checkedReset()
-					for y := 0; y < HEIGHT; y++ {
-						for x := 0; x < WIDTH; x++{
-							n := getConnectedBlockCount(x, y, cell[y][x], 0)
-							if n >= 3{
-								eraseConnectedBlock(x, y, cell[y][x])
-							}
-						}
+					// 隣接したブロックを洗濯しているかどうか
+					distance := math.Abs(float64(play.selectedX) - float64(play.cursorX)) +
+						math.Abs(float64(play.selectedY) - float64(play.cursorY))
+					if distance == 1.0{
+						// 入れ替え処理
+						cell[play.selectedY][play.selectedX], cell[play.cursorY][play.cursorX] = cell[play.cursorY][play.cursorX], cell[play.selectedY][play.selectedX]
+						// 連結確認処理
+
+						eraseConnectedBlockAll(play)
+
+						play.selectedX, play.selectedY = -1, -1
+						play.locked = true
+					}else{
+						play.error = "隣接していないブロック同士は入れ替えることが出来ません。"
 					}
-					selectedX, selectedY = -1, -1
-					locked = true
 				}
 			}
 		}
